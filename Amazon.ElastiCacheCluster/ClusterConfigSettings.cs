@@ -17,12 +17,14 @@
  */
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Configuration;
-using Enyim.Caching.Configuration;
-using Enyim.Caching.Memcached;
+using System.IO;
+
 using Amazon.ElastiCacheCluster.Factories;
+
+using Enyim.Caching.Memcached;
+
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
 
 namespace Amazon.ElastiCacheCluster
 {
@@ -41,7 +43,15 @@ namespace Amazon.ElastiCacheCluster
         /// <summary>
         /// For config manager
         /// </summary>
-        public ClusterConfigSettings() { }
+        public ClusterConfigSettings()
+            : base(
+                new ConfigurationRoot(new List<IConfigurationProvider>
+                {
+                    new JsonConfigurationProvider(new JsonConfigurationSource())
+                }),
+                $"{Directory.GetCurrentDirectory()}/appsettings.json")
+        {
+        }
 
         /// <summary>
         /// Used to initialize a setup with a host and port
@@ -49,14 +59,20 @@ namespace Amazon.ElastiCacheCluster
         /// <param name="hostname">Cluster hostname</param>
         /// <param name="port">Cluster port</param>
         public ClusterConfigSettings(string hostname, int port)
+            : base(
+                new ConfigurationRoot(new List<IConfigurationProvider>
+                {
+                    new JsonConfigurationProvider(new JsonConfigurationSource())
+                }),
+                $"{Directory.GetCurrentDirectory()}/appsettings.json")
         {
             if (string.IsNullOrEmpty(hostname))
                 throw new ArgumentNullException("hostname");
             if (port <= 0)
                 throw new ArgumentException("Port cannot be less than or equal to zero");
 
-            this.ClusterEndPoint.HostName = hostname;
-            this.ClusterEndPoint.Port = port;
+            ClusterEndPoint.HostName = hostname;
+            ClusterEndPoint.Port = port;
         }
 
         #endregion

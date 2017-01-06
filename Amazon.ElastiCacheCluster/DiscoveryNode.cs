@@ -15,17 +15,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 
-using System.Net;
-using System.Configuration;
-using Enyim.Caching.Configuration;
-using Enyim.Caching.Memcached;
 using Amazon.ElastiCacheCluster.Helpers;
 using Amazon.ElastiCacheCluster.Operations;
-using Amazon.ElastiCacheCluster.Pools;
-using Enyim.Caching.Memcached.Results;
-using Enyim.Caching.Memcached.Protocol;
+
+using Enyim.Caching.Memcached;
 
 namespace Amazon.ElastiCacheCluster
 {
@@ -56,7 +52,7 @@ namespace Amazon.ElastiCacheCluster
         /// <summary>
         /// The number of nodes running inside of the cluster
         /// </summary>
-        public int NodesInCluster { get { return this.nodes.Count; } }
+        public int NodesInCluster { get { return nodes.Count; } }
 
         #region Private Fields
 
@@ -123,17 +119,17 @@ namespace Amazon.ElastiCacheCluster
             this.hostname = hostname;
             this.port = port;
             this.config = config;
-            this.ClusterVersion = 0;
+            ClusterVersion = 0;
             this.tries = tries;
             this.delay = delay;
 
-            this.clusterLock = new Object();
-            this.endpointLock = new Object();
-            this.nodesLock = new Object();
+            clusterLock = new Object();
+            endpointLock = new Object();
+            nodesLock = new Object();
 
             #endregion
 
-            this.ResolveEndPoint();
+            ResolveEndPoint();
         }
 
         #endregion
@@ -145,9 +141,9 @@ namespace Amazon.ElastiCacheCluster
         /// </summary>
         internal void StartPoller()
         {
-            this.config.Pool.UpdateLocator(new List<IPEndPoint>(new IPEndPoint[] { this.EndPoint }));
-            this.poller = new ConfigurationPoller(this.config);
-            this.poller.StartTimer();
+            config.Pool.UpdateLocator(new List<IPEndPoint>(new IPEndPoint[] { EndPoint }));
+            poller = new ConfigurationPoller(config);
+            poller.StartTimer();
         }
 
         /// <summary>
@@ -156,8 +152,8 @@ namespace Amazon.ElastiCacheCluster
         /// <param name="intervalDelay">Time between pollings, in miliseconds</param>
         internal void StartPoller(int intervalDelay)
         {
-            this.poller = new ConfigurationPoller(this.config, intervalDelay);
-            this.poller.StartTimer();
+            poller = new ConfigurationPoller(config, intervalDelay);
+            poller.StartTimer();
         }
 
         #endregion
@@ -171,26 +167,26 @@ namespace Amazon.ElastiCacheCluster
         {
             try
             {
-                var endpoints = AddrUtil.HashEndPointList(this.GetNodeConfig());
+                var endpoints = AddrUtil.HashEndPointList(GetNodeConfig());
 
                 lock (nodesLock)
                 {
                     var nodesToRemove = new HashSet<IMemcachedNode>();
-                    foreach (var node in this.nodes)
+                    foreach (var node in nodes)
                     {
                         if (!endpoints.Contains(node.EndPoint))
                             nodesToRemove.Add(node);
                     }
                     foreach (var node in nodesToRemove)
                     {
-                        this.nodes.Remove(node);
+                        nodes.Remove(node);
                     }
 
                     foreach (var point in endpoints)
                     {
-                        if (this.nodes.FirstOrDefault(x => x.EndPoint.Equals(point)) == null)
+                        if (nodes.FirstOrDefault(x => x.EndPoint.Equals(point)) == null)
                         {
-                            this.nodes.Add(this.config.nodeFactory.CreateNode(point, this.config.SocketPool));
+                            nodes.Add(config.nodeFactory.CreateNode(point, config.SocketPool));
                         }
                     }
                 }
@@ -214,7 +210,7 @@ namespace Amazon.ElastiCacheCluster
         internal string GetNodeConfig()
         {
             var tries = this.tries;
-            var nodeVersion = this.GetNodeVersion();
+            var nodeVersion = GetNodeVersion();
             var older = new Version("1.4.14");
             var waiting = true;
             string message = "";
@@ -232,7 +228,7 @@ namespace Amazon.ElastiCacheCluster
                     lock (nodesLock)
                     {
                         // This avoids timing out from requesting the config from the endpoint
-                        foreach (var node in this.nodes.ToArray())
+                        foreach (var node in nodes.ToArray())
                         {
                             try
                             {
@@ -258,25 +254,25 @@ namespace Amazon.ElastiCacheCluster
                     }
 
                     if (waiting)
-                        System.Threading.Thread.Sleep(this.delay);
+                        System.Threading.Thread.Sleep(delay);
 
                 }
                 catch (Exception ex)
                 {
                     message = ex.Message;
-                    System.Threading.Thread.Sleep(this.delay);
+                    System.Threading.Thread.Sleep(delay);
                 }
             }
 
             if (waiting)
             {
-                throw new TimeoutException(String.Format("Could not get config of version " + this.NodeVersion.ToString() + ". Tries: {0} Delay: {1}. " + message, this.tries, this.delay));
+                throw new TimeoutException(String.Format("Could not get config of version " + NodeVersion.ToString() + ". Tries: {0} Delay: {1}. " + message, this.tries, delay));
             }
 
             lock (clusterLock)
             {
-                if (this.ClusterVersion < Convert.ToInt32(items[0]))
-                    this.ClusterVersion = Convert.ToInt32(items[0]);
+                if (ClusterVersion < Convert.ToInt32(items[0]))
+                    ClusterVersion = Convert.ToInt32(items[0]);
             }
             return items[1];
         }
@@ -287,25 +283,25 @@ namespace Amazon.ElastiCacheCluster
         /// <returns>Version of memcahced running on nodes</returns>
         internal Version GetNodeVersion()
         {
-            if (this.NodeVersion != null)
+            if (NodeVersion != null)
             {
-                return this.NodeVersion;
+                return NodeVersion;
             }
 
-            if (!string.IsNullOrEmpty(this.Node.ToString()) && this.Node.ToString().Equals("TestingAWSInternal"))
+            if (!string.IsNullOrEmpty(Node.ToString()) && Node.ToString().Equals("TestingAWSInternal"))
             {
-                this.NodeVersion = new Version("1.4.14");
-                return this.NodeVersion;
+                NodeVersion = new Version("1.4.14");
+                return NodeVersion;
             }
 
             IStatsOperation statcommand = new Enyim.Caching.Memcached.Protocol.Text.StatsOperation(null);
-            var statresult = this.Node.Execute(statcommand);
+            var statresult = Node.Execute(statcommand);
 
             string version;
             if (statcommand.Result != null && statcommand.Result.TryGetValue("version", out version))
             {
-                this.NodeVersion = new Version(version);
-                return this.NodeVersion;
+                NodeVersion = new Version(version);
+                return NodeVersion;
             }
             else
             {
@@ -322,7 +318,7 @@ namespace Amazon.ElastiCacheCluster
         {
             IPHostEntry entry = null;
             var waiting = true;
-            var tryCount = this.tries;
+            var tryCount = tries;
             string message = "";
 
             while (tryCount > 0 && waiting)
@@ -330,7 +326,7 @@ namespace Amazon.ElastiCacheCluster
                 try
                 {
                     tryCount--;
-                    entry = Dns.GetHostEntry(hostname);
+                    entry = Dns.GetHostEntryAsync(hostname).Result;
                     if (entry.AddressList.Length > 0)
                     {
                         waiting = false;
@@ -339,7 +335,7 @@ namespace Amazon.ElastiCacheCluster
                 catch (Exception ex)
                 {
                     message = ex.Message;
-                    System.Threading.Thread.Sleep(this.delay);
+                    System.Threading.Thread.Sleep(delay);
                 }
             }
 
@@ -347,31 +343,31 @@ namespace Amazon.ElastiCacheCluster
             if (waiting || entry == null)
             {
                 log.Error("Could not resolve hostname to ip");
-                throw new TimeoutException(String.Format("Could not resolve hostname to Ip after trying the specified amount: {0}. " + message, this.tries));
+                throw new TimeoutException(String.Format("Could not resolve hostname to Ip after trying the specified amount: {0}. " + message, tries));
             }
 
             log.DebugFormat("Resolved configuration endpoint {0} to {1}.", hostname, entry.AddressList[0]);
 
             lock (endpointLock)
             {
-                this.EndPoint = new IPEndPoint(entry.AddressList[0], port);
+                EndPoint = new IPEndPoint(entry.AddressList[0], port);
             }
 
             lock (nodesLock)
             {
-                if (this.Node != null)
+                if (Node != null)
                 {
                     try
                     {
-                        this.Node.Dispose();
+                        Node.Dispose();
                     }
                     catch { }
                 }
-                this.Node = this.config.nodeFactory.CreateNode(this.EndPoint, this.config.SocketPool);
-                this.nodes.Clear();
-                this.nodes.Add(this.Node);
+                Node = config.nodeFactory.CreateNode(EndPoint, config.SocketPool);
+                nodes.Clear();
+                nodes.Add(Node);
             }
-            return this.EndPoint;
+            return EndPoint;
         }
 
         #endregion
@@ -381,8 +377,8 @@ namespace Amazon.ElastiCacheCluster
         /// </summary>
         public void Dispose()
         {
-            if (this.poller != null)
-                this.poller.StopPolling();
+            if (poller != null)
+                poller.StopPolling();
         }
     }
 }

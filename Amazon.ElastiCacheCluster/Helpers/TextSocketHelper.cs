@@ -19,6 +19,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Collections.Generic;
+
 using Enyim.Caching.Memcached;
 
 namespace Amazon.ElastiCacheCluster.Helpers
@@ -35,7 +36,7 @@ namespace Amazon.ElastiCacheCluster.Helpers
         /// </summary>
         public const string CommandTerminator = "\r\n";
 
-        private static readonly Enyim.Caching.ILog log = Enyim.Caching.LogManager.GetLogger(typeof(TextSocketHelper));
+        private static readonly Enyim.Caching.ILog Log = Enyim.Caching.LogManager.GetLogger(typeof(TextSocketHelper));
 
         /// <summary>
         /// Reads the response of the server.
@@ -46,27 +47,30 @@ namespace Amazon.ElastiCacheCluster.Helpers
         /// <exception cref="T:Enyim.Caching.Memcached.MemcachedClientException">The server did not recognize the request sent by the client. The Message of the exception is the message returned by the server.</exception>
         internal static string ReadResponse(PooledSocket socket)
         {
-            string response = TextSocketHelper.ReadLine(socket);
+            var response = TextSocketHelper.ReadLine(socket);
 
-            if (log.IsDebugEnabled)
-                log.Debug("Received response: " + response);
+            if (Log.IsDebugEnabled)
+                Log.Debug("Received response: " + response);
 
-            if (String.IsNullOrEmpty(response))
+            if (string.IsNullOrEmpty(response))
                 throw new MemcachedClientException("Empty response received.");
 
-            if (String.Compare(response, GenericErrorResponse, StringComparison.Ordinal) == 0)
+            if (string.Compare(response, GenericErrorResponse, StringComparison.Ordinal) == 0)
                 throw new NotSupportedException("Operation is not supported by the server or the request was malformed. If the latter please report the bug to the developers.");
 
-            if (response.Length >= ErrorResponseLength)
+            if (response.Length < ErrorResponseLength)
             {
-                if (String.Compare(response, 0, ClientErrorResponse, 0, ErrorResponseLength, StringComparison.Ordinal) == 0)
-                {
-                    throw new MemcachedClientException(response.Remove(0, ErrorResponseLength));
-                }
-                else if (String.Compare(response, 0, ServerErrorResponse, 0, ErrorResponseLength, StringComparison.Ordinal) == 0)
-                {
-                    throw new MemcachedException(response.Remove(0, ErrorResponseLength));
-                }
+                return response;
+            }
+
+            if (string.Compare(response, 0, ClientErrorResponse, 0, ErrorResponseLength, StringComparison.Ordinal) == 0)
+            {
+                throw new MemcachedClientException(response.Remove(0, ErrorResponseLength));
+            }
+
+            if (string.Compare(response, 0, ServerErrorResponse, 0, ErrorResponseLength, StringComparison.Ordinal) == 0)
+            {
+                throw new MemcachedException(response.Remove(0, ErrorResponseLength));
             }
 
             return response;
@@ -79,9 +83,9 @@ namespace Amazon.ElastiCacheCluster.Helpers
         /// <returns></returns>
         private static string ReadLine(PooledSocket socket)
         {
-            MemoryStream ms = new MemoryStream(50);
+            var ms = new MemoryStream(50);
 
-            bool gotR = false;
+            var gotR = false;
             //byte[] buffer = new byte[1];
 
             int data;
@@ -109,10 +113,13 @@ namespace Amazon.ElastiCacheCluster.Helpers
                 ms.WriteByte((byte)data);
             }
 
-            string retval = Encoding.ASCII.GetString(ms.GetBuffer(), 0, (int)ms.Length);
+            ArraySegment<byte> buffer;
+            ms.TryGetBuffer(out buffer);
 
-            if (log.IsDebugEnabled)
-                log.Debug("ReadLine: " + retval);
+            var retval = Encoding.ASCII.GetString(buffer.Array, 0, (int)ms.Length);
+
+            if (Log.IsDebugEnabled)
+                Log.Debug("ReadLine: " + retval);
 
             return retval;
         }

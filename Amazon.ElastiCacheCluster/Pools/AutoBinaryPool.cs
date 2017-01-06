@@ -16,13 +16,9 @@
  * permissions and limitations under the License.
  */
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Net;
-using System.Threading;
+
 using Enyim.Caching.Configuration;
-using Enyim.Collections;
-using System.Security;
 using Enyim.Caching.Memcached;
 using Enyim.Caching.Memcached.Protocol.Binary;
 
@@ -39,7 +35,7 @@ namespace Amazon.ElastiCacheCluster.Pools
         public AutoBinaryPool(IMemcachedClientConfiguration configuration)
             : base(configuration, new BinaryOperationFactory())
         {
-            this.authenticationProvider = GetProvider(configuration);
+            authenticationProvider = GetProvider(configuration);
             this.configuration = configuration;
         }
 
@@ -47,7 +43,7 @@ namespace Amazon.ElastiCacheCluster.Pools
         {
             if (endpoint == null)
                 throw new ArgumentNullException("endpoint");
-            return new BinaryNode(endpoint, this.configuration.SocketPool, this.authenticationProvider);
+            return new BinaryNode(endpoint, configuration.SocketPool, authenticationProvider);
         }
 
         private static ISaslAuthenticationProvider GetProvider(IMemcachedClientConfiguration configuration)

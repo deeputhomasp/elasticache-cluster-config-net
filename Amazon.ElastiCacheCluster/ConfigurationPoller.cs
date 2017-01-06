@@ -15,8 +15,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Timers;
+using System.Threading;
 
 namespace Amazon.ElastiCacheCluster
 {
@@ -25,7 +24,7 @@ namespace Amazon.ElastiCacheCluster
     /// </summary>
     internal class ConfigurationPoller
     {
-        private static readonly Enyim.Caching.ILog log = Enyim.Caching.LogManager.GetLogger(typeof(ConfigurationPoller));
+        private static readonly Enyim.Caching.ILog Log = Enyim.Caching.LogManager.GetLogger(typeof(ConfigurationPoller));
 
         #region Defaults
 
@@ -34,9 +33,9 @@ namespace Amazon.ElastiCacheCluster
 
         #endregion
 
-        private Timer timer;
-        private int intervalDelay;
-        private ElastiCacheClusterConfig config;
+        private Timer _timer;
+        private readonly int _intervalDelay;
+        private readonly ElastiCacheClusterConfig _config;
 
         #region Constructors
 
@@ -54,11 +53,8 @@ namespace Amazon.ElastiCacheCluster
         /// <param name="intervalDelay">The amount of time between polling operations in miliseconds</param>
         public ConfigurationPoller(ElastiCacheClusterConfig config, int intervalDelay)
         {
-            this.intervalDelay = intervalDelay < 0 ? DEFAULT_INTERVAL_DELAY : intervalDelay;
-            this.config = config;
-
-            this.timer = new Timer(this.intervalDelay);
-            this.timer.Elapsed += this.pollOnTimedEvent;
+            _intervalDelay = intervalDelay < 0 ? DEFAULT_INTERVAL_DELAY : intervalDelay;
+            _config = config;
         }
 
         #endregion
@@ -67,54 +63,55 @@ namespace Amazon.ElastiCacheCluster
 
         internal void StartTimer()
         {
-            log.Debug("Starting timer");
-            this.pollOnTimedEvent(null, null);
-            this.timer.Start();
+            Log.Debug("Starting timer");
+            PollOnTimedEvent(null);
+
+            _timer = new Timer(PollOnTimedEvent, null, _intervalDelay, Timeout.Infinite);
         }
 
         /// <summary>
         /// Used by the poller's timer to update the cluster configuration if a new version is available
         /// </summary>
-        internal void pollOnTimedEvent(Object source, ElapsedEventArgs evnt)
+        internal void PollOnTimedEvent(object state)
         {
-            log.Debug("Polling...");
+            Log.Debug("Polling...");
             try
             {
-                var oldVersion = config.DiscoveryNode.ClusterVersion;
-                var endPoints = config.DiscoveryNode.GetEndPointList();
-                if (oldVersion != config.DiscoveryNode.ClusterVersion || 
-                    (this.config.Pool.nodeLocator != null && endPoints.Count != this.config.Pool.nodeLocator.GetWorkingNodes().Count()))
+                var oldVersion = _config.DiscoveryNode.ClusterVersion;
+                var endPoints = _config.DiscoveryNode.GetEndPointList();
+                if (oldVersion != _config.DiscoveryNode.ClusterVersion || 
+                    (_config.Pool.nodeLocator != null && endPoints.Count != _config.Pool.nodeLocator.GetWorkingNodes().Count()))
                 {
-                    log.DebugFormat("Updating endpoints to have {0} nodes", endPoints.Count);
-                    this.config.Pool.UpdateLocator(endPoints);
+                    Log.DebugFormat("Updating endpoints to have {0} nodes", endPoints.Count);
+                    _config.Pool.UpdateLocator(endPoints);
                 }
             }
             catch(Exception e)
             {
                 try
                 {
-                    log.Debug("Error updating endpoints, going to attempt to reresolve configuration endpoint.", e);
-                    config.DiscoveryNode.ResolveEndPoint();
+                    Log.Debug("Error updating endpoints, going to attempt to reresolve configuration endpoint.", e);
+                    _config.DiscoveryNode.ResolveEndPoint();
 
-                    var oldVersion = config.DiscoveryNode.ClusterVersion;
-                    var endPoints = config.DiscoveryNode.GetEndPointList();
-                    if (oldVersion != config.DiscoveryNode.ClusterVersion ||
-                        (this.config.Pool.nodeLocator != null && endPoints.Count != this.config.Pool.nodeLocator.GetWorkingNodes().Count()))
+                    var oldVersion = _config.DiscoveryNode.ClusterVersion;
+                    var endPoints = _config.DiscoveryNode.GetEndPointList();
+                    if (oldVersion != _config.DiscoveryNode.ClusterVersion ||
+                        (_config.Pool.nodeLocator != null && endPoints.Count != _config.Pool.nodeLocator.GetWorkingNodes().Count()))
                     {
-                        log.DebugFormat("Updating endpoints to have {0} nodes", endPoints.Count);
-                        this.config.Pool.UpdateLocator(endPoints);
+                        Log.DebugFormat("Updating endpoints to have {0} nodes", endPoints.Count);
+                        _config.Pool.UpdateLocator(endPoints);
                     }
                 }
                 catch (Exception ex)
                 {
-                    log.Debug("Error updating endpoints. Setting endpoints to empty collection of nodes.", ex);
+                    Log.Debug("Error updating endpoints. Setting endpoints to empty collection of nodes.", ex);
 
                     /* 
                      * We were not able to retrieve the current node configuration. This is most likely because the application
                      * is running in development outside of EC2. ElastiCache clusters are only accessible from an EC2 instance
                      * with the right security permissions.
                      */
-                    this.config.Pool.UpdateLocator(new List<System.Net.IPEndPoint>());
+                    _config.Pool.UpdateLocator(new List<System.Net.IPEndPoint>());
                 }
             }
         }
@@ -126,9 +123,8 @@ namespace Amazon.ElastiCacheCluster
         /// </summary>
         public void StopPolling()
         {
-            log.Debug("Destroying poller thread");
-            if (this.timer != null)
-                this.timer.Dispose();
+            Log.Debug("Destroying poller thread");
+            _timer?.Dispose();
         }
     }
 }

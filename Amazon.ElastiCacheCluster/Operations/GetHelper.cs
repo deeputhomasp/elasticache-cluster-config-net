@@ -15,37 +15,39 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
-using Enyim.Caching.Memcached;
-using Amazon.ElastiCacheCluster.Helpers;
 using System;
 using System.Globalization;
+
+using Amazon.ElastiCacheCluster.Helpers;
+
+using Enyim.Caching.Memcached;
 
 namespace Amazon.ElastiCacheCluster.Operations
 {
     internal static class GetHelper
     {
-        private static readonly Enyim.Caching.ILog log = Enyim.Caching.LogManager.GetLogger(typeof(GetHelper));
+        private static readonly Enyim.Caching.ILog Log = Enyim.Caching.LogManager.GetLogger(typeof(GetHelper));
 
         public static void FinishCurrent(PooledSocket socket)
         {
-            string response = TextSocketHelper.ReadResponse(socket);
+            var response = TextSocketHelper.ReadResponse(socket);
 
-            if (String.Compare(response, "END", StringComparison.Ordinal) != 0)
+            if (string.Compare(response, "END", StringComparison.Ordinal) != 0)
                 throw new MemcachedClientException("No END was received.");
         }
 
         public static GetResponse ReadItem(PooledSocket socket)
         {
-            string description = TextSocketHelper.ReadResponse(socket);
+            var description = TextSocketHelper.ReadResponse(socket);
 
-            if (String.Compare(description, "END", StringComparison.Ordinal) == 0)
+            if (string.Compare(description, "END", StringComparison.Ordinal) == 0)
                 return null;
 
-            if (description.Length < 6 || String.Compare(description, 0, "VALUE ", 0, 6, StringComparison.Ordinal) != 0)
+            if (description.Length < 6 || string.Compare(description, 0, "VALUE ", 0, 6, StringComparison.Ordinal) != 0)
                 throw new MemcachedClientException("No VALUE response received.\r\n" + description);
 
             ulong cas = 0;
-            string[] parts = description.Split(' ');
+            var parts = description.Split(' ');
 
             // response is:
             // VALUE <key> <flags> <bytes> [<cas unique>]
@@ -55,7 +57,7 @@ namespace Amazon.ElastiCacheCluster.Operations
             //
             if (parts.Length == 5)
             {
-                if (!UInt64.TryParse(parts[4], out cas))
+                if (!ulong.TryParse(parts[4], out cas))
                     throw new MemcachedClientException("Invalid CAS VALUE received.");
 
             }
@@ -64,19 +66,19 @@ namespace Amazon.ElastiCacheCluster.Operations
                 throw new MemcachedClientException("Invalid VALUE response received: " + description);
             }
 
-            ushort flags = UInt16.Parse(parts[2], CultureInfo.InvariantCulture);
-            int length = Int32.Parse(parts[3], CultureInfo.InvariantCulture);
+            var flags = ushort.Parse(parts[2], CultureInfo.InvariantCulture);
+            var length = int.Parse(parts[3], CultureInfo.InvariantCulture);
 
-            byte[] allData = new byte[length];
-            byte[] eod = new byte[2];
+            var allData = new byte[length];
+            var eod = new byte[2];
 
             socket.Read(allData, 0, length);
             socket.Read(eod, 0, 2); // data is terminated by \r\n
 
-            GetResponse retval = new GetResponse(parts[1], flags, cas, allData);
+            var retval = new GetResponse(parts[1], flags, cas, allData);
 
-            if (log.IsDebugEnabled)
-                log.DebugFormat("Received value. Data type: {0}, size: {1}.", retval.Item.Flags, retval.Item.Data.Count);
+            if (Log.IsDebugEnabled)
+                Log.DebugFormat("Received value. Data type: {0}, size: {1}.", retval.Item.Flags, retval.Item.Data.Count);
 
             return retval;
         }

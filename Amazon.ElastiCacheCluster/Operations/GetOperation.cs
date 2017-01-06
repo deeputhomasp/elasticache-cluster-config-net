@@ -15,10 +15,14 @@
  * express or implied. See the License for the specific language governing
  * permissions and limitations under the License.
  */
+
+using System.Threading.Tasks;
+
 using Enyim.Caching.Memcached;
 using Enyim.Caching.Memcached.Protocol;
 using Enyim.Caching.Memcached.Results;
 using Enyim.Caching.Memcached.Results.Extensions;
+
 using Amazon.ElastiCacheCluster.Helpers;
 
 namespace Amazon.ElastiCacheCluster.Operations
@@ -31,7 +35,7 @@ namespace Amazon.ElastiCacheCluster.Operations
 
         protected override System.Collections.Generic.IList<System.ArraySegment<byte>> GetBuffer()
         {
-            var command = "gets " + this.Key + TextSocketHelper.CommandTerminator;
+            var command = "gets " + Key + TextSocketHelper.CommandTerminator;
 
             return TextSocketHelper.GetCommandBuffer(command);
         }
@@ -44,25 +48,27 @@ namespace Amazon.ElastiCacheCluster.Operations
             if (r == null) return result.Fail("Failed to read response");
 
             this.result = r.Item;
-            this.ConfigResult = r.Item;
+            ConfigResult = r.Item;
 
-            this.Cas = r.CasValue;
+            Cas = r.CasValue;
 
             GetHelper.FinishCurrent(socket);
 
             return result.Pass();
         }
 
-        CacheItem IGetOperation.Result
-        {
-            get { return this.result; }
-        }
+        CacheItem IGetOperation.Result => result;
+
+        public CacheItem ConfigResult { get; set; }
 
         protected override bool ReadResponseAsync(PooledSocket socket, System.Action<bool> next)
         {
             throw new System.NotSupportedException();
         }
 
-        public CacheItem ConfigResult { get; set; }
+        protected override Task<IOperationResult> ReadResponseAsync(PooledSocket socket)
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }

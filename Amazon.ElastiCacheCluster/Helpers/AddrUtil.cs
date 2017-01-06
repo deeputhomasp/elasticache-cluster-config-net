@@ -14,9 +14,7 @@
  */
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Text;
 
 namespace Amazon.ElastiCacheCluster.Helpers
 {
@@ -32,10 +30,10 @@ namespace Amazon.ElastiCacheCluster.Helpers
         /// <returns>List of the endpoints parsed to ip:port endpoints for connections</returns>
         public static List<IPEndPoint> HashEndPointList(string endpoints)
         {
-            List<IPEndPoint> list = new List<IPEndPoint>();
+            var list = new List<IPEndPoint>();
             foreach (var node in endpoints.Split(' '))
             {
-                string[] parts = node.Split('|');
+                var parts = node.Split('|');
                 IPAddress ip;
                 if (IPAddress.TryParse(parts[1], out ip))
                 {
