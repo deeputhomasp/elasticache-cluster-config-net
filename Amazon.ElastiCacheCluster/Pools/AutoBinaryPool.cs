@@ -22,6 +22,8 @@ using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
 using Enyim.Caching.Memcached.Protocol.Binary;
 
+using Microsoft.Extensions.Logging;
+
 namespace Amazon.ElastiCacheCluster.Pools
 {
     /// <summary>
@@ -29,21 +31,23 @@ namespace Amazon.ElastiCacheCluster.Pools
     /// </summary>
     internal class AutoBinaryPool : AutoServerPool
     {
+        private static readonly ILogger<AutoBinaryPool> Logger = new LoggerFactory().CreateLogger<AutoBinaryPool>();
+
         ISaslAuthenticationProvider authenticationProvider;
         IMemcachedClientConfiguration configuration;
 
         public AutoBinaryPool(IMemcachedClientConfiguration configuration)
-            : base(configuration, new BinaryOperationFactory())
+            : base(configuration, new BinaryOperationFactory(new LoggerFactory().CreateLogger<AutoBinaryPool>()))
         {
             authenticationProvider = GetProvider(configuration);
             this.configuration = configuration;
         }
 
-        protected override IMemcachedNode CreateNode(IPEndPoint endpoint)
+        protected override IMemcachedNode CreateNode(EndPoint endpoint)
         {
             if (endpoint == null)
                 throw new ArgumentNullException("endpoint");
-            return new BinaryNode(endpoint, configuration.SocketPool, authenticationProvider);
+            return new BinaryNode(endpoint, configuration.SocketPool, authenticationProvider, Logger);
         }
 
         private static ISaslAuthenticationProvider GetProvider(IMemcachedClientConfiguration configuration)

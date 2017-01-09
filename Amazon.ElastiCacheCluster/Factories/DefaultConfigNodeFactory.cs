@@ -17,13 +17,15 @@ using System.Net;
 using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
 
+using Microsoft.Extensions.Logging;
+
 namespace Amazon.ElastiCacheCluster.Factories
 {
     internal class DefaultConfigNodeFactory : IConfigNodeFactory
     {
         public IMemcachedNode CreateNode(IPEndPoint endpoint, ISocketPoolConfiguration config)
         {
-            return new MemcachedNode(endpoint, config);
+            return new MemcachedNode(endpoint, config, new LoggerFactory().CreateLogger<MemcachedNode>());
         }
     }
 }

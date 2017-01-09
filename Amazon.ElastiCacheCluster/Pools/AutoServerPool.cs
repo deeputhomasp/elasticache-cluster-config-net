@@ -23,6 +23,7 @@ using System.Threading;
 
 using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
+using Microsoft.Extensions.Logging;
 
 namespace Amazon.ElastiCacheCluster.Pools
 {
@@ -31,7 +32,9 @@ namespace Amazon.ElastiCacheCluster.Pools
     /// </summary>
     internal class AutoServerPool : IServerPool, IDisposable
     {
-        private static readonly Enyim.Caching.ILog log = Enyim.Caching.LogManager.GetLogger(typeof(DefaultServerPool));
+        private static readonly Enyim.Caching.ILog Log = Enyim.Caching.LogManager.GetLogger(typeof(DefaultServerPool));
+
+        private static readonly ILogger<AutoServerPool> Logger = new LoggerFactory().CreateLogger<AutoServerPool>();
 
         private IMemcachedNode[] allNodes;
 
@@ -42,7 +45,7 @@ namespace Amazon.ElastiCacheCluster.Pools
         private object DeadSync = new Object();
         private Timer resurrectTimer;
         private bool isTimerActive;
-        private long deadTimeoutMsec;
+        private int deadTimeoutMsec;
         private bool isDisposed;
         private event Action<IMemcachedNode> nodeFailed;
 
@@ -59,7 +62,7 @@ namespace Amazon.ElastiCacheCluster.Pools
             this.configuration = configuration;
             factory = opFactory;
 
-            deadTimeoutMsec = (long)this.configuration.SocketPool.DeadTimeout.TotalMilliseconds;
+            deadTimeoutMsec = (int)this.configuration.SocketPool.DeadTimeout.TotalMilliseconds;
         }
 
         ~AutoServerPool()
@@ -68,16 +71,16 @@ namespace Amazon.ElastiCacheCluster.Pools
             catch { }
         }
 
-        protected virtual IMemcachedNode CreateNode(IPEndPoint endpoint)
+        protected virtual IMemcachedNode CreateNode(EndPoint endpoint)
         {
-            return new MemcachedNode(endpoint, configuration.SocketPool);
+            return new MemcachedNode(endpoint, configuration.SocketPool, Logger);
         }
 
         private void rezCallback(object state)
         {
-            var isDebug = log.IsDebugEnabled;
+            var isDebug = Log.IsDebugEnabled;
 
-            if (isDebug) log.Debug("Checking the dead servers.");
+            if (isDebug) Log.Debug("Checking the dead servers.");
 
             // how this works:
             // 1. timer is created but suspended
@@ -97,7 +100,7 @@ namespace Amazon.ElastiCacheCluster.Pools
             {
                 if (isDisposed)
                 {
-                    if (log.IsWarnEnabled) log.Warn("IsAlive timer was triggered but the pool is already disposed. Ignoring.");
+                    if (Log.IsWarnEnabled) Log.Warn("IsAlive timer was triggered but the pool is already disposed. Ignoring.");
 
                     return;
                 }
@@ -112,24 +115,24 @@ namespace Amazon.ElastiCacheCluster.Pools
                     var n = nodes[i];
                     if (n.IsAlive)
                     {
-                        if (isDebug) log.DebugFormat("Alive: {0}", n.EndPoint);
+                        if (isDebug) Log.DebugFormat("Alive: {0}", n.EndPoint);
 
                         aliveList.Add(n);
                     }
                     else
                     {
-                        if (isDebug) log.DebugFormat("Dead: {0}", n.EndPoint);
+                        if (isDebug) Log.DebugFormat("Dead: {0}", n.EndPoint);
 
                         if (n.Ping())
                         {
                             changed = true;
                             aliveList.Add(n);
 
-                            if (isDebug) log.Debug("Ping ok.");
+                            if (isDebug) Log.Debug("Ping ok.");
                         }
                         else
                         {
-                            if (isDebug) log.Debug("Still dead.");
+                            if (isDebug) Log.Debug("Still dead.");
 
                             deadCount++;
                         }
@@ -139,7 +142,7 @@ namespace Amazon.ElastiCacheCluster.Pools
                 // reinit the locator
                 if (changed)
                 {
-                    if (isDebug) log.Debug("Reinitializing the locator.");
+                    if (isDebug) Log.Debug("Reinitializing the locator.");
 
                     nodeLocator.Initialize(aliveList);
                 }
@@ -147,13 +150,13 @@ namespace Amazon.ElastiCacheCluster.Pools
                 // stop or restart the timer
                 if (deadCount == 0)
                 {
-                    if (isDebug) log.Debug("deadCount == 0, stopping the timer.");
+                    if (isDebug) Log.Debug("deadCount == 0, stopping the timer.");
 
                     isTimerActive = false;
                 }
                 else
                 {
-                    if (isDebug) log.DebugFormat("deadCount == {0}, starting the timer.", deadCount);
+                    if (isDebug) Log.DebugFormat("deadCount == {0}, starting the timer.", deadCount);
 
                     resurrectTimer.Change(deadTimeoutMsec, Timeout.Infinite);
                 }
@@ -162,8 +165,8 @@ namespace Amazon.ElastiCacheCluster.Pools
 
         private void NodeFail(IMemcachedNode node)
         {
-            var isDebug = log.IsDebugEnabled;
-            if (isDebug) log.DebugFormat("Node {0} is dead.", node.EndPoint);
+            var isDebug = Log.IsDebugEnabled;
+            if (isDebug) Log.DebugFormat("Node {0} is dead.", node.EndPoint);
 
             // the timer is stopped until we encounter the first dead server
             // when we have one, we trigger it and it will run after DeadTimeout has elapsed
@@ -171,7 +174,7 @@ namespace Amazon.ElastiCacheCluster.Pools
             {
                 if (isDisposed)
                 {
-                    if (log.IsWarnEnabled) log.Warn("Got a node fail but the pool is already disposed. Ignoring.");
+                    if (Log.IsWarnEnabled) Log.Warn("Got a node fail but the pool is already disposed. Ignoring.");
 
                     return;
                 }
@@ -190,7 +193,7 @@ namespace Amazon.ElastiCacheCluster.Pools
                 // when we have one, we trigger it and it will run after DeadTimeout has elapsed
                 if (!isTimerActive)
                 {
-                    if (isDebug) log.Debug("Starting the recovery timer.");
+                    if (isDebug) Log.Debug("Starting the recovery timer.");
 
                     if (resurrectTimer == null)
                         resurrectTimer = new Timer(rezCallback, null, deadTimeoutMsec, Timeout.Infinite);
@@ -199,7 +202,7 @@ namespace Amazon.ElastiCacheCluster.Pools
 
                     isTimerActive = true;
 
-                    if (isDebug) log.Debug("Timer started.");
+                    if (isDebug) Log.Debug("Timer started.");
                 }
             }
         }
@@ -272,13 +275,13 @@ namespace Amazon.ElastiCacheCluster.Pools
                 var nd = nodeLocator as IDisposable;
                 if (nd != null)
                     try { nd.Dispose(); }
-                    catch (Exception e) { if (log.IsErrorEnabled) log.Error(e); }
+                    catch (Exception e) { if (Log.IsErrorEnabled) Log.Error(e); }
 
                 nodeLocator = null;
 
                 for (var i = 0; i < allNodes.Length; i++)
                     try { allNodes[i].Dispose(); }
-                    catch (Exception e) { if (log.IsErrorEnabled) log.Error(e); }
+                    catch (Exception e) { if (Log.IsErrorEnabled) Log.Error(e); }
 
                 // stop the timer
                 if (resurrectTimer != null)

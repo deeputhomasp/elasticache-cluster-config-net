@@ -16,10 +16,11 @@
  * permissions and limitations under the License.
  */
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using System.Collections.Generic;
 
+using Enyim.Caching;
 using Enyim.Caching.Memcached;
 
 namespace Amazon.ElastiCacheCluster.Helpers
@@ -36,7 +37,7 @@ namespace Amazon.ElastiCacheCluster.Helpers
         /// </summary>
         public const string CommandTerminator = "\r\n";
 
-        private static readonly Enyim.Caching.ILog Log = Enyim.Caching.LogManager.GetLogger(typeof(TextSocketHelper));
+        private static readonly ILog Log = LogManager.GetLogger(typeof(TextSocketHelper));
 
         /// <summary>
         /// Reads the response of the server.
@@ -47,7 +48,7 @@ namespace Amazon.ElastiCacheCluster.Helpers
         /// <exception cref="T:Enyim.Caching.Memcached.MemcachedClientException">The server did not recognize the request sent by the client. The Message of the exception is the message returned by the server.</exception>
         internal static string ReadResponse(PooledSocket socket)
         {
-            var response = TextSocketHelper.ReadLine(socket);
+            var response = ReadLine(socket);
 
             if (Log.IsDebugEnabled)
                 Log.Debug("Received response: " + response);
@@ -132,11 +133,11 @@ namespace Amazon.ElastiCacheCluster.Helpers
         /// <returns>The buffer containing the bytes representing the command. The command must be terminated by \r\n.</returns>
         /// <remarks>The Nagle algorithm is disabled on the socket to speed things up, so it's recommended to convert a command into a buffer
         /// and use the <see cref="M:Enyim.Caching.Memcached.PooledSocket.Write(IList&lt;ArraySegment&lt;byte&gt;&gt;)"/> to send the command and the additional buffers in one transaction.</remarks>
-        internal unsafe static IList<ArraySegment<byte>> GetCommandBuffer(string value)
+        internal static IList<ArraySegment<byte>> GetCommandBuffer(string value)
         {
             var data = new ArraySegment<byte>(Encoding.ASCII.GetBytes(value));
 
-            return new ArraySegment<byte>[] { data };
+            return new[] { data };
         }
 
         /// <summary>
@@ -145,7 +146,7 @@ namespace Amazon.ElastiCacheCluster.Helpers
         /// <param name="value">The command to be converted.</param>
         /// <param name="list">The list to store the buffer in.</param>
         /// <returns>The buffer containing the bytes representing the command. The command must be terminated by \r\n.</returns>
-        internal unsafe static IList<ArraySegment<byte>> GetCommandBuffer(string value, IList<ArraySegment<byte>> list)
+        internal static IList<ArraySegment<byte>> GetCommandBuffer(string value, IList<ArraySegment<byte>> list)
         {
             var data = new ArraySegment<byte>(Encoding.ASCII.GetBytes(value));
 

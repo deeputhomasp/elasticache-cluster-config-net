@@ -14,6 +14,8 @@
  */
 using Enyim.Caching;
 
+using Microsoft.Extensions.Logging;
+
 namespace Amazon.ElastiCacheCluster
 {
     /// <summary>
@@ -22,13 +24,15 @@ namespace Amazon.ElastiCacheCluster
     /// </summary>
     public static class ClusterClient
     {
+        private static readonly ILogger<MemcachedClient> Logger = new LoggerFactory().CreateLogger<MemcachedClient>();
+
         /// <summary>
         /// Creates a MemcachedClient using the settings found in the app.config section "clusterclient"
         /// </summary>
         /// <returns>A new MemcachedClient configured for auto discovery</returns>
         public static MemcachedClient CreateClient()
         {
-            return new MemcachedClient(new ElastiCacheClusterConfig());
+            return new MemcachedClient(Logger,  new ElastiCacheClusterConfig());
         }
 
         /// <summary>
@@ -38,7 +42,7 @@ namespace Amazon.ElastiCacheCluster
         /// <returns>A new MemcachedClient configured for auto discovery</returns>
         public static MemcachedClient CreateClient(string section)
         {
-            return new MemcachedClient(new ElastiCacheClusterConfig(section));
+            return new MemcachedClient(Logger, new ElastiCacheClusterConfig(section));
         }
 
         /// <summary>
@@ -49,7 +53,7 @@ namespace Amazon.ElastiCacheCluster
         /// <returns>A new MemcachedClient configured for auto discovery</returns>
         public static MemcachedClient CreateClient(string endpoint, int port)
         {
-            return new MemcachedClient(new ElastiCacheClusterConfig(endpoint, port));
+            return new MemcachedClient(Logger, new ElastiCacheClusterConfig(endpoint, port));
         }
 
         /// <summary>
@@ -59,7 +63,7 @@ namespace Amazon.ElastiCacheCluster
         /// <returns>A new MemcachedClient configured for auto discovery</returns>
         public static MemcachedClient CreateClient(ElastiCacheClusterConfig config)
         {
-            return new MemcachedClient(config);
+            return new MemcachedClient(Logger, config);
         }
     }
 }

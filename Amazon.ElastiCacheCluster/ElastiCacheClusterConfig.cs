@@ -17,6 +17,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 
 using Amazon.ElastiCacheCluster.Factories;
@@ -26,6 +27,8 @@ using Enyim.Caching.Configuration;
 using Enyim.Caching.Memcached;
 using Enyim.Reflection;
 
+using Microsoft.Extensions.Configuration;
+
 namespace Amazon.ElastiCacheCluster
 {
     /// <summary>
@@ -33,6 +36,8 @@ namespace Amazon.ElastiCacheCluster
     /// </summary>
     public class ElastiCacheClusterConfig : IMemcachedClientConfiguration
     {
+        private static IConfigurationRoot _configuration;
+
         // these are lazy initialized in the getters
         private Type nodeLocator;
         private ITranscoder transcoder;
@@ -49,6 +54,14 @@ namespace Amazon.ElastiCacheCluster
 
         #region Constructors
 
+        static ElastiCacheClusterConfig()
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json");
+            _configuration = builder.Build();
+        }
+
         /// <summary>
         /// Initializes a MemcahcedClient config with auto discovery enabled from the app.config clusterclient section
         /// </summary>
@@ -60,7 +73,7 @@ namespace Amazon.ElastiCacheCluster
         /// </summary>
         /// <param name="section">The section to get config settings from</param>
         public ElastiCacheClusterConfig(string section)
-            : this(ConfigurationManager.GetSection(section) as ClusterConfigSettings) { }
+            : this(_configuration.GetSection(section) as ClusterConfigSettings) { }
 
         /// <summary>
         /// Initializes a MemcahcedClient config with auto discovery enabled
@@ -80,15 +93,15 @@ namespace Amazon.ElastiCacheCluster
             {
                 try
                 {
-                    setup = ConfigurationManager.GetSection("clusterclient") as ClusterConfigSettings;
+                    setup = _configuration.GetSection("clusterclient") as ClusterConfigSettings;
                     if (setup == null)
                     {
-                        throw new ConfigurationErrorsException("Could not instantiate from app.config, setup was null");
+                        throw new Exception("Could not instantiate from appsettings.json, setup was null");
                     }
                 }
                 catch (Exception ex)
                 {
-                    throw new ConfigurationErrorsException("Could not instantiate from app.config\n" + ex.Message);
+                    throw new Exception("Could not instantiate from appsettings.json\n" + ex.Message);
                 }
             }
 
